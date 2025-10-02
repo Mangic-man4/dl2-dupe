@@ -1,0 +1,4 @@
+pickup_key: f
+sync_interval: 10
+non_host_lag: 0.1
+host_mode: False
