@@ -20,15 +20,15 @@ def main():
 		config_messages = {
 			"pickup_key": {
 				"info": "Enter new pickup key (single key, e.g. 'e'): ",
-				"error": "Interval must be > 0. No change made."
+				"error": "No change made."
 			},
 			"sync_interval": {
 				"info": "Enter new sync interval in seconds (int > 0): ",
-				"error": "Lag must be >= 0. No change made."
+				"error": "Interval must be > 0. No change made."
 			},
 			"non_host_lag": {
 				"info": "Enter non-host lag compensation in seconds (e.g., 0.12): ",
-				"error": "No change made."
+				"error": "Lag must be >= 0. No change made."
 			}
 		}
 
@@ -47,8 +47,6 @@ def main():
 		keyboard.add_hotkey("f7", toggle_host, args=[cfg, is_host])
 		keyboard.add_hotkey("f8", sync_pickup, args=[state, is_host])
 
-		keyboard.add_hotkey("f7", toggle_host, args=[is_host])
-		keyboard.add_hotkey("f8", sync_pickup, args=[state, is_host])
 		keyboard.wait("f9")
 		print("Exited...")
 		sys.exit(0)
@@ -103,9 +101,9 @@ def sync_pickup(state, is_host: threading.Event):
 def change_config(cfg: dict, state: dict, message: dict, key: str):
 	try:
 		raw = input(message[key]["info"]).strip()
-		if key == "sync_interval" and val <= 0:
+		if key == "sync_interval":
 			val = int(raw)
-		elif key == "non_host_lag" and val <= 0.0:
+		elif key == "non_host_lag":
 			val = float(raw)
 		else:
 			val = raw
@@ -113,7 +111,7 @@ def change_config(cfg: dict, state: dict, message: dict, key: str):
 		if key == "sync_interval" and val <= 0:
 			print(message[key]["error"])
 			return
-		elif key == "non_host_lag" and val <= 0.0:
+		elif key == "non_host_lag" and val < 0.0:
 			print(message[key]["error"])
 			return
 		elif key == "pickup_key" and not val:
