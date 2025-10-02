@@ -5,7 +5,9 @@ CONFIG_PATH = Path("config.yml")
 
 def main():
 	try:
-		cfg = load_config()
+		cfg, meta = load_config()
+		print(f"Config source: {'file' if meta['loaded'] else 'defaults'} ({meta['path']})")
+
 		is_host = threading.Event()		# flag for non-host lag compensation
 
 		if cfg["host_mode"]:
@@ -31,16 +33,16 @@ def main():
 				"error": "Lag must be >= 0. No change made."
 			}
 		}
-
-
 		
-		print(f"Press F4 to change pickup key (set as: {state['pickup_key']})")
-		print(f"Press F5 to change refresh interval (set as: {state['sync_interval']})")
-		print(f"Press F6 to change lag compensation timer (set as: {state['non_host_lag']})")
-		print(f"Press F7 to toggle lag compensation (set as: {'On, host = no lag' if is_host.is_set() else 'Off, non-host = lag'}).")
-		print("Press F8 to arm. Script will fire at the next 10-second mark.")
-		print("Press F9 to quit.")
+		print(f"Configurations set as:\n"
+		f"	pickup key: {state['pickup_key']}\n"
+		f"	refresh interval {state['sync_interval']} sec\n"
+		f"	lag compensation: {state['non_host_lag']} ms\n"
+		f"	lag compensation mode: {'On, host = no lag' if is_host.is_set() else 'Off, non-host = lag'}\n")
+		print_triggers()
 
+		keyboard.add_hotkey("f2", print_triggers)
+		keyboard.add_hotkey("f3", print_config, args=[state, is_host])
 		keyboard.add_hotkey("f4", change_config, args=[cfg, state, config_messages, "pickup_key"])
 		keyboard.add_hotkey("f5", change_config, args=[cfg, state, config_messages, "sync_interval"])
 		keyboard.add_hotkey("f6", change_config, args=[cfg, state, config_messages, "non_host_lag"])
@@ -57,8 +59,10 @@ def main():
 		except SystemExit:
 			os._exit(130)
 
-
 def load_config():
+	exists = CONFIG_PATH.exists()
+	loaded = False
+	overrides = {}
 	defaults = {
 		"pickup_key": "f",
 		"sync_interval": 10,
@@ -66,12 +70,26 @@ def load_config():
 		"host_mode": False
 	}
 
-	if CONFIG_PATH.exists():
-		with CONFIG_PATH.open("r", encoding="utf-8") as file:
-			data = yaml.safe_load(file) or {}
-		defaults.update({key: data.get(key, value) for key, value in defaults.items()})
+	if exists:
+		try:
+			with CONFIG_PATH.open("r", encoding="utf-8") as file:
+				data = yaml.safe_load(file) or {}
+			if isinstance(data, dict):
+				overrides = {k: data[k] for k in defaults.keys() if k in data}
+				defaults.update(overrides)
+				loaded = True
+			else:
+				print("Warning: config.yaml content is not a mapping; using defaults.")
+		except Exception as e:
+			print(f"Warning: failed to read {CONFIG_PATH}: {e}. Using defaults.")
 
-	return defaults
+	meta = {
+		"exists": exists,
+		"loaded": loaded,
+		"overrides": list(overrides.keys()),
+		"path": str(CONFIG_PATH)
+	}
+	return defaults, meta
 
 def save_config(cfg: dict):
 	with CONFIG_PATH.open("w", encoding="utf-8") as file:
@@ -96,7 +114,7 @@ def sync_pickup(state, is_host: threading.Event):
 	time.sleep(max(0.0, wait_time + lag_delay))
 
 	keyboard.press_and_release(pickup_key)
-	print("Pressed, press F8 to trigger again, F5-F7 to change settings, F9 to quit.")
+	print("Pressed, press F8 to trigger again, F2 to show detailed key triggers, F3 to show current settings, F4-F7 to change settings, F9 to quit.")
 	
 def change_config(cfg: dict, state: dict, message: dict, key: str):
 	try:
@@ -124,12 +142,35 @@ def change_config(cfg: dict, state: dict, message: dict, key: str):
 		print(f"Saved {key} = {val}")
 	except Exception as e:
 		print(f"Failed to change {key}: {e}")
+	finally:
+		print("Press F8 to trigger the script, F2 to show detailed key triggers, F3 to show current settings, F4-F7 to change settings, F9 to quit.")
 
 def toggle_host(cfg: dict, is_host: threading.Event):
-	is_host.clear() if is_host.is_set() else is_host.set()
-	cfg["host_mode"] = bool(is_host.is_set())
-	save_config(cfg)
-	print(f"Host mode is now {'On' if is_host.is_set() else 'Off'} (saved)")
+	try:
+		is_host.clear() if is_host.is_set() else is_host.set()
+		cfg["host_mode"] = bool(is_host.is_set())
+		save_config(cfg)
+		print(f"Host mode is now {'On' if is_host.is_set() else 'Off'} (saved)")
+	except Exception as e:
+		print(f"Failed to toggle host mode")
+	finally:
+		print("Press F8 to trigger the script, F2 to show detailed key triggers, F3 to show current settings, F4-F7 to change settings, F9 to quit.")
+
+def print_config(state, is_host: threading.Event):
+	print(f"Configurations set as:\n"
+	f"	pickup key: {state['pickup_key']}\n"
+	f"	refresh interval {state['sync_interval']} sec\n"
+	f"	lag compensation: {state['non_host_lag']} ms\n"
+	f"	lag compensation mode: {'On, host = no lag' if is_host.is_set() else 'Off, non-host = lag'}")
+	print("Press F8 to trigger the script, F2 to show detailed key triggers, F3 to show current settings, F4-F7 to change settings, F9 to quit.")
+	
+def print_triggers():
+	print(f"Press F2 to show key triggers\n"
+	f"Press F2 to show detailed key triggers, F3 to show current settings\n"
+	f"Press F4 to change pickup key\n"
+	f"Press F5 to change refresh interval\n"
+	f"Press F8 to arm. Script will fire at the next 10-second mark.\n"
+	f"Press F9 to quit.")
 
 if __name__ == "__main__":
 	main()
